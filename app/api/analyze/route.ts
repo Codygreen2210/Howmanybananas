@@ -32,13 +32,14 @@ export async function POST(req: NextRequest) {
               type: 'text',
               text: `You measure things in bananas. Average banana = 7 inches / 18 cm long.
 
-Identify the main subject of this image. Estimate its longest dimension in bananas.
+Identify the main subject of this image. Estimate BOTH its height (top to bottom) and width (side to side) in bananas.
 
 Respond ONLY with valid JSON. No markdown, no preamble:
 {
-  "bananas": <number, decimals ok>,
+  "height_bananas": <number, decimals ok>,
+  "width_bananas": <number, decimals ok>,
   "object": "<what you measured, max 5 words>",
-  "deadpan": "<one deadpan line, max 15 words, no exclamation marks>"
+  "deadpan": "<one deadpan line about its banana dimensions, max 15 words, no exclamation marks>"
 }`,
             },
           ],
