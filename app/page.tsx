@@ -5,6 +5,7 @@ import { useState } from 'react';
 interface Result {
   height_bananas: number;
   width_bananas: number;
+  weight_bananas: number;
   object: string;
   deadpan: string;
 }
@@ -42,6 +43,14 @@ async function resizeImage(
     reader.onerror = () => reject(new Error('Read failed'));
     reader.readAsDataURL(file);
   });
+}
+
+function formatNum(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+  if (n >= 10_000) return (n / 1_000).toFixed(0) + 'K';
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+  if (n >= 10) return Math.round(n).toString();
+  return n.toFixed(1);
 }
 
 export default function Home() {
@@ -137,24 +146,33 @@ export default function Home() {
                 {result.object}
               </div>
 
-              <div className="grid grid-cols-2 gap-3 mt-3">
+              <div className="grid grid-cols-3 gap-2 mt-3">
                 <div className="bg-yellow-300 border-2 border-black rounded-xl p-3 text-center">
-                  <div className="text-xs font-bold uppercase opacity-70">
+                  <div className="text-[10px] font-bold uppercase opacity-70">
                     height
                   </div>
-                  <div className="text-4xl font-black">
-                    {result.height_bananas}
+                  <div className="text-3xl font-black">
+                    {formatNum(result.height_bananas)}
                   </div>
-                  <div className="text-xl">🍌</div>
+                  <div className="text-lg">🍌</div>
                 </div>
                 <div className="bg-yellow-300 border-2 border-black rounded-xl p-3 text-center">
-                  <div className="text-xs font-bold uppercase opacity-70">
+                  <div className="text-[10px] font-bold uppercase opacity-70">
                     width
                   </div>
-                  <div className="text-4xl font-black">
-                    {result.width_bananas}
+                  <div className="text-3xl font-black">
+                    {formatNum(result.width_bananas)}
                   </div>
-                  <div className="text-xl">🍌</div>
+                  <div className="text-lg">🍌</div>
+                </div>
+                <div className="bg-yellow-300 border-2 border-black rounded-xl p-3 text-center">
+                  <div className="text-[10px] font-bold uppercase opacity-70">
+                    weight
+                  </div>
+                  <div className="text-3xl font-black">
+                    {formatNum(result.weight_bananas)}
+                  </div>
+                  <div className="text-lg">🍌</div>
                 </div>
               </div>
 
