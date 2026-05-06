@@ -3,12 +3,16 @@
 import { useState } from 'react';
 
 interface Result {
-  bananas: number;
+  height_bananas: number;
+  width_bananas: number;
   object: string;
   deadpan: string;
 }
 
-async function resizeImage(file: File, maxDim = 1280): Promise<{ base64: string; mediaType: string }> {
+async function resizeImage(
+  file: File,
+  maxDim = 1280
+): Promise<{ base64: string; mediaType: string }> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -85,7 +89,9 @@ export default function Home() {
         <h1 className="text-5xl sm:text-6xl font-black tracking-tight">
           🍌 howmanybananas
         </h1>
-        <p className="mt-2 text-lg font-medium">measure anything. unit: banana.</p>
+        <p className="mt-2 text-lg font-medium">
+          measure anything. unit: banana.
+        </p>
       </header>
 
       {!preview && !loading && (
@@ -130,19 +136,28 @@ export default function Home() {
               <div className="text-sm font-bold uppercase tracking-wider opacity-60">
                 {result.object}
               </div>
-              <div className="text-6xl font-black my-2">
-                {result.bananas} 🍌
+
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <div className="bg-yellow-300 border-2 border-black rounded-xl p-3 text-center">
+                  <div className="text-xs font-bold uppercase opacity-70">
+                    height
+                  </div>
+                  <div className="text-4xl font-black">
+                    {result.height_bananas}
+                  </div>
+                  <div className="text-xl">🍌</div>
+                </div>
+                <div className="bg-yellow-300 border-2 border-black rounded-xl p-3 text-center">
+                  <div className="text-xs font-bold uppercase opacity-70">
+                    width
+                  </div>
+                  <div className="text-4xl font-black">
+                    {result.width_bananas}
+                  </div>
+                  <div className="text-xl">🍌</div>
+                </div>
               </div>
-              <div className="text-2xl leading-tight">
-                {Array.from({
-                  length: Math.min(Math.round(result.bananas), 20),
-                }).map((_, i) => (
-                  <span key={i}>🍌</span>
-                ))}
-                {result.bananas > 20 && (
-                  <span className="text-base ml-2 font-bold">+ more</span>
-                )}
-              </div>
+
               <p className="mt-4 text-lg italic border-t-2 border-black pt-3">
                 "{result.deadpan}"
               </p>
