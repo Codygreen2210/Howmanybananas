@@ -8,41 +8,69 @@ interface Result {
   deadpan: string;
 }
 
+async function resizeImage(file: File, maxDim = 1280): Promise<{ base64: string; mediaType: string }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height && width > maxDim) {
+          height = (height * maxDim) / width;
+          width = maxDim;
+        } else if (height > maxDim) {
+          width = (width * maxDim) / height;
+          height = maxDim;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject(new Error('No canvas'));
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        const [, base64] = dataUrl.split(',');
+        resolve({ base64, mediaType: 'image/jpeg' });
+      };
+      img.onerror = () => reject(new Error('Image load failed'));
+      img.src = reader.result as string;
+    };
+    reader.onerror = () => reject(new Error('Read failed'));
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function Home() {
   const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const handleFile = (file: File) => {
+  const handleFile = async (file: File) => {
     setError(null);
     setResult(null);
+    setLoading(true);
 
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const dataUrl = reader.result as string;
-      setPreview(dataUrl);
+    try {
+      const { base64, mediaType } = await resizeImage(file);
+      setPreview(`data:${mediaType};base64,${base64}`);
 
-      const [header, base64] = dataUrl.split(',');
-      const mediaType = header.match(/data:(.*?);/)?.[1] || 'image/jpeg';
-
-      setLoading(true);
-      try {
-        const res = await fetch('/api/analyze', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: base64, mediaType }),
-        });
-        if (!res.ok) throw new Error('Analysis failed');
-        const data = await res.json();
-        setResult(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Something broke');
-      } finally {
-        setLoading(false);
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: base64, mediaType }),
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.error || `Failed (${res.status})`);
       }
-    };
-    reader.readAsDataURL(file);
+      const data = await res.json();
+      setResult(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something broke');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const reset = () => {
@@ -57,12 +85,10 @@ export default function Home() {
         <h1 className="text-5xl sm:text-6xl font-black tracking-tight">
           🍌 howmanybananas
         </h1>
-        <p className="mt-2 text-lg font-medium">
-          measure anything. unit: banana.
-        </p>
+        <p className="mt-2 text-lg font-medium">measure anything. unit: banana.</p>
       </header>
 
-      {!preview && (
+      {!preview && !loading && (
         <label className="cursor-pointer bg-black text-yellow-300 font-bold py-6 px-10 rounded-full text-xl shadow-lg active:scale-95 transition-transform">
           upload a pic
           <input
@@ -77,13 +103,15 @@ export default function Home() {
         </label>
       )}
 
-      {preview && (
+      {(preview || loading) && (
         <div className="w-full max-w-md flex flex-col items-center gap-6">
-          <img
-            src={preview}
-            alt="upload"
-            className="w-full rounded-2xl shadow-xl border-4 border-black"
-          />
+          {preview && (
+            <img
+              src={preview}
+              alt="upload"
+              className="w-full rounded-2xl shadow-xl border-4 border-black"
+            />
+          )}
 
           {loading && (
             <div className="text-2xl font-bold animate-pulse">
@@ -92,7 +120,7 @@ export default function Home() {
           )}
 
           {error && (
-            <div className="bg-red-500 text-white p-4 rounded-xl font-bold">
+            <div className="bg-red-500 text-white p-4 rounded-xl font-bold text-center">
               {error}
             </div>
           )}
