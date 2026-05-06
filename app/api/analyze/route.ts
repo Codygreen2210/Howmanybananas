@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
 
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 300,
+      max_tokens: 400,
       messages: [
         {
           role: 'user',
@@ -30,16 +30,22 @@ export async function POST(req: NextRequest) {
             },
             {
               type: 'text',
-              text: `You measure things in bananas. Average banana = 7 inches / 18 cm long.
+              text: `You measure things in bananas.
+- Average banana length = 7 inches / 18 cm
+- Average banana weight = 120 grams / 0.26 lb
 
-Identify the main subject of this image. Estimate BOTH its height (top to bottom) and width (side to side) in bananas.
+Identify the main subject of this image. Estimate:
+1. Its height (top to bottom) in bananas.
+2. Its width (side to side) in bananas.
+3. Its weight in bananas. If it is a well-known object (Eiffel Tower, Statue of Liberty, common car, household item, animal, etc.), use the real published weight and convert. If unknown, give your best educated estimate based on visible material, size, and type.
 
 Respond ONLY with valid JSON. No markdown, no preamble:
 {
   "height_bananas": <number, decimals ok>,
   "width_bananas": <number, decimals ok>,
+  "weight_bananas": <number, decimals ok>,
   "object": "<what you measured, max 5 words>",
-  "deadpan": "<one deadpan line about its banana dimensions, max 15 words, no exclamation marks>"
+  "deadpan": "<one deadpan line about its banana stats, max 15 words, no exclamation marks>"
 }`,
             },
           ],
