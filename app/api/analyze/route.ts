@@ -8,33 +8,24 @@ const anthropic = new Anthropic();
 
 export async function POST(req: NextRequest) {
   try {
-    const { image, mediaType } = await req.json();
-    if (!image) {
-      return NextResponse.json({ error: 'No image provided' }, { status: 400 });
+    const { image, mediaType, query } = await req.json();
+
+    if (!image && !query) {
+      return NextResponse.json(
+        { error: 'No image or query provided' },
+        { status: 400 }
+      );
     }
 
-    const message = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 400,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: mediaType || 'image/jpeg',
-                data: image,
-              },
-            },
-            {
-              type: 'text',
-              text: `You measure things in bananas.
+    const subjectLine = image
+      ? 'Identify the main subject of this image.'
+      : `The object to measure is: "${String(query).slice(0, 200)}".`;
+
+    const promptText = `You measure things in bananas.
 - Average banana length = 7 inches / 18 cm
 - Average banana weight = 120 grams / 0.26 lb
 
-Identify the main subject of this image. Estimate:
+${subjectLine} Estimate:
 1. Its height (top to bottom) in bananas.
 2. Its width (side to side) in bananas.
 3. Its weight in bananas. If it is a well-known object (Eiffel Tower, Statue of Liberty, common car, household item, animal, etc.), use the real published weight and convert. If unknown, give your best educated estimate based on visible material, size, and type.
@@ -46,11 +37,25 @@ Respond ONLY with valid JSON. No markdown, no preamble:
   "weight_bananas": <number, decimals ok>,
   "object": "<what you measured, max 5 words>",
   "deadpan": "<one deadpan line about its banana stats, max 15 words, no exclamation marks>"
-}`,
-            },
-          ],
+}`;
+
+    const userContent: Anthropic.ContentBlockParam[] = [];
+    if (image) {
+      userContent.push({
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: mediaType || 'image/jpeg',
+          data: image,
         },
-      ],
+      });
+    }
+    userContent.push({ type: 'text', text: promptText });
+
+    const message = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 400,
+      messages: [{ role: 'user', content: userContent }],
     });
 
     const textBlock = message.content.find((b) => b.type === 'text');
