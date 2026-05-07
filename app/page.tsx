@@ -80,7 +80,10 @@ async function makeThumbnail(dataUrl: string, maxDim = 360): Promise<string> {
   });
 }
 
-function formatNum(n: number): string {
+// Defensive — handles undefined, null, NaN, strings.
+function formatNum(input: unknown): string {
+  const n = typeof input === 'number' ? input : Number(input);
+  if (!Number.isFinite(n) || n <= 0) return '?';
   if (n >= 100_000_000) return Math.round(n / 1_000_000) + 'M';
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
   if (n >= 100_000) return Math.round(n / 1_000) + 'K';
@@ -93,7 +96,11 @@ function loadHistory(): HistoryItem[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-    return Array.isArray(raw) ? raw.filter((i) => i && i.id) : [];
+    if (!Array.isArray(raw)) return [];
+    // Filter out malformed entries from older versions.
+    return raw.filter(
+      (i) => i && typeof i === 'object' && i.id && i.object
+    );
   } catch {
     return [];
   }
@@ -243,11 +250,11 @@ export default function Home() {
   const handleShare = async () => {
     if (!result) return;
     const text = `🍌 ${result.object}
-height: ${result.real_height} = ${formatNum(result.height_bananas)} bananas
-width: ${result.real_width} = ${formatNum(result.width_bananas)} bananas
-weight: ${result.real_weight} = ${formatNum(result.weight_bananas)} bananas
+height: ${result.real_height || '?'} = ${formatNum(result.height_bananas)} bananas
+width: ${result.real_width || '?'} = ${formatNum(result.width_bananas)} bananas
+weight: ${result.real_weight || '?'} = ${formatNum(result.weight_bananas)} bananas
 
-"${result.deadpan}"
+"${result.deadpan || ''}"
 
 measure anything: ${typeof window !== 'undefined' ? window.location.origin : ''}`;
     try {
@@ -426,7 +433,7 @@ measure anything: ${typeof window !== 'undefined' ? window.location.origin : ''}
           {result && (
             <div className="bg-white border-4 border-black rounded-2xl p-5 w-full shadow-xl">
               <div className="text-sm font-bold uppercase tracking-wider opacity-60">
-                {result.object}
+                {result.object || 'unknown'}
               </div>
 
               <div className="grid grid-cols-3 gap-2 mt-3">
@@ -456,9 +463,9 @@ measure anything: ${typeof window !== 'undefined' ? window.location.origin : ''}
                     </div>
                     <div
                       className="text-[11px] font-bold mt-1 truncate"
-                      title={s.real}
+                      title={s.real || ''}
                     >
-                      {s.real}
+                      {s.real || '?'}
                     </div>
                     <div className="text-xs opacity-50">↓</div>
                     <div className="text-xl font-black leading-tight whitespace-nowrap">
@@ -469,9 +476,11 @@ measure anything: ${typeof window !== 'undefined' ? window.location.origin : ''}
                 ))}
               </div>
 
-              <p className="mt-4 text-base italic border-t-2 border-black pt-3">
-                "{result.deadpan}"
-              </p>
+              {result.deadpan && (
+                <p className="mt-4 text-base italic border-t-2 border-black pt-3">
+                  "{result.deadpan}"
+                </p>
+              )}
             </div>
           )}
 
