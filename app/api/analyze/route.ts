@@ -6,6 +6,33 @@ export const maxDuration = 30;
 
 const anthropic = new Anthropic();
 
+// Brace-balanced JSON extractor — finds the last complete {...} block.
+function extractJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {}
+
+  const lastBrace = text.lastIndexOf('}');
+  if (lastBrace === -1) throw new Error('No JSON object found');
+
+  let depth = 0;
+  let start = -1;
+  for (let i = lastBrace; i >= 0; i--) {
+    const ch = text[i];
+    if (ch === '}') depth++;
+    else if (ch === '{') {
+      depth--;
+      if (depth === 0) {
+        start = i;
+        break;
+      }
+    }
+  }
+  if (start === -1) throw new Error('No matching opening brace');
+
+  return JSON.parse(text.slice(start, lastBrace + 1));
+}
+
 async function fetchWikiImage(query: string): Promise<string | null> {
   try {
     const controller = new AbortController();
@@ -29,30 +56,17 @@ async function fetchWikiImage(query: string): Promise<string | null> {
     });
     clearTimeout(t);
 
-    if (!res.ok) {
-      console.log('Wiki fetch failed:', res.status);
-      return null;
-    }
-
+    if (!res.ok) return null;
     const data = await res.json();
     const pages = data?.query?.pages;
-    if (!pages) {
-      console.log('Wiki: no pages for', query);
-      return null;
-    }
+    if (!pages) return null;
 
     const firstPage = Object.values(pages)[0] as {
       original?: { source: string };
       thumbnail?: { source: string };
     };
-
-    const imageUrl =
-      firstPage?.original?.source || firstPage?.thumbnail?.source || null;
-
-    console.log('Wiki image for', query, ':', imageUrl ? 'found' : 'none');
-    return imageUrl;
-  } catch (e) {
-    console.log('Wiki error:', e);
+    return firstPage?.original?.source || firstPage?.thumbnail?.source || null;
+  } catch {
     return null;
   }
 }
@@ -73,42 +87,24 @@ export async function POST(req: NextRequest) {
 
     const promptText = `You measure things in bananas with strict accuracy.
 
-CONSTANTS (use these exact values):
-- Banana length: 7 inches = 0.1778 meters
-- Banana weight: 120 grams = 0.12 kg
+CONSTANTS:
+- Banana length: 0.1778 meters (7 inches)
+- Banana weight: 0.12 kg (120 grams)
 
-PROCESS:
 ${subjectLine}
 
-Step 1 — Lookup real dimensions:
-If the object is well-known (named landmark, named vehicle/ship/aircraft, common animal species, common product, branded item), use its REAL published dimensions and weight. Do NOT estimate when real data exists.
-If generic/unknown, estimate using visible reference objects and typical dimensions.
+If well-known (named landmark, vehicle, animal species, branded item), use REAL published dimensions. If unknown, estimate using visible references and typical sizes.
 
-Step 2 — Do the math precisely:
+Math:
 - height_bananas = real_height_meters / 0.1778
-- width_bananas = real_horizontal_extent_meters / 0.1778
+- width_bananas = real_horizontal_meters / 0.1778
 - weight_bananas = real_weight_kg / 0.12
 
-Step 3 — Output reasoning, then the JSON.
+You MUST end your response with a valid JSON object on the LAST line, with no text after it. The JSON must contain exactly these fields and no nested objects:
 
-REASONING:
-- Object: <name>
-- Real height: <value with unit>
-- Real width/length: <value with unit>
-- Real weight: <value with unit>
-- Math: <show divisions>
+{"height_bananas": <number>, "width_bananas": <number>, "weight_bananas": <number>, "real_height": "<value with unit>", "real_width": "<value with unit>", "real_weight": "<value with unit>", "object": "<max 5 words>", "deadpan": "<one deadpan line max 15 words no exclamation marks no curly braces>"}
 
-JSON:
-{
-  "height_bananas": <number>,
-  "width_bananas": <number>,
-  "weight_bananas": <number>,
-  "real_height": "<height with unit, e.g. '92.5 m'>",
-  "real_width": "<width or length with unit>",
-  "real_weight": "<weight with unit, e.g. '52,310 tonnes'>",
-  "object": "<what you measured, max 5 words>",
-  "deadpan": "<one deadpan line about its banana stats, max 15 words, no exclamation marks>"
-}`;
+You may write reasoning before the JSON, but the JSON MUST be the last thing in your response.`;
 
     const userContent: Anthropic.ContentBlockParam[] = [];
     if (image) {
@@ -139,17 +135,22 @@ JSON:
     }
 
     const cleaned = textBlock.text.replace(/```json|```/g, '').trim();
-    let result;
-    try {
-      result = JSON.parse(cleaned);
-    } catch {
-      const matches = cleaned.match(/\{[^{}]*\}/g);
-      if (!matches?.length) throw new Error('Invalid JSON from model');
-      result = JSON.parse(matches[matches.length - 1]);
-    }
+    const result = extractJson(cleaned) as Record<string, unknown>;
 
-    if (wikiImage) result.image_url = wikiImage;
-    return NextResponse.json(result);
+    // Coerce + provide safe fallbacks so client never crashes on missing fields.
+    const safe = {
+      height_bananas: Number(result.height_bananas) || 0,
+      width_bananas: Number(result.width_bananas) || 0,
+      weight_bananas: Number(result.weight_bananas) || 0,
+      real_height: String(result.real_height || 'unknown'),
+      real_width: String(result.real_width || 'unknown'),
+      real_weight: String(result.real_weight || 'unknown'),
+      object: String(result.object || 'unknown object'),
+      deadpan: String(result.deadpan || ''),
+      ...(wikiImage ? { image_url: wikiImage } : {}),
+    };
+
+    return NextResponse.json(safe);
   } catch (err) {
     console.error('Analyze error:', err);
     return NextResponse.json(
